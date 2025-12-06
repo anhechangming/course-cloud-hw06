@@ -43,7 +43,7 @@ services:
     image: mysql:8.4
     container_name: user-db
     environment:
-      MYSQL_ROOT_PASSWORD: lilili2004
+      MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: user_db
       MYSQL_USER: user_user
       MYSQL_PASSWORD: user_pass
@@ -68,7 +68,7 @@ services:
     image: mysql:8.4
     container_name: catalog-db
     environment:
-      MYSQL_ROOT_PASSWORD: lilili2004
+      MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: catalog_db
       MYSQL_USER: catalog_user
       MYSQL_PASSWORD: catalog_pass
@@ -93,7 +93,7 @@ services:
     image: mysql:8.4
     container_name: enrollment-db
     environment:
-      MYSQL_ROOT_PASSWORD: lilili2004
+      MYSQL_ROOT_PASSWORD: 123456
       MYSQL_DATABASE: enrollment_db
       MYSQL_USER: enrollment_user
       MYSQL_PASSWORD: enrollment_pass
@@ -239,3 +239,5 @@ services:
     networks:
       - course-network
     restart: unless-stopped
+
+
