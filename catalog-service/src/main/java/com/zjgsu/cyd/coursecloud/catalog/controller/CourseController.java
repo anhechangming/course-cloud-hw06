@@ -98,32 +98,85 @@ public class CourseController {
                 });
     }
 
-    @PostMapping
-    public ResponseEntity<Map<String, Object>> createCourse(@Valid @RequestBody CourseRequest request) {
-        log.info("Catalog Service [port: {}, hostname: {}] creating course: {}",
-                currentPort, getHostname(), request.code());
+//    @PostMapping
+//    public ResponseEntity<Map<String, Object>> createCourse(@Valid @RequestBody CourseRequest request) {
+//        log.info("Catalog Service [port: {}, hostname: {}] creating course: {}",
+//                currentPort, getHostname(), request.code());
+//
+//        Course course = new Course(
+//                request.code(),
+//                request.title(),
+//                new Instructor(request.instructorId(), request.instructorName(), request.instructorEmail()),
+//                new ScheduleSlot(
+//                        request.dayOfWeek().toDayOfWeek(),
+//                        LocalTime.parse(request.start()),
+//                        LocalTime.parse(request.end()),
+//                        request.expectedAttendance()
+//                ),
+//                request.capacity()
+//        );
+//        Course saved = repository.save(course);
+//
+//        Map<String, Object> response = new HashMap<>();
+//        response.put("port", currentPort);
+//        response.put("hostname", getHostname());
+//        response.put("data", CourseResponse.from(saved));
+//        response.put("status", "SUCCESS");
+//        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+//    }
+@PostMapping
+public ResponseEntity<Map<String, Object>> createCourse(@Valid @RequestBody CourseRequest request) {
+    log.info("Catalog Service [port: {}, hostname: {}] creating course: {}",
+            currentPort, getHostname(), request.code());
 
+    try {
+        // 1. 构建讲师信息
+        Instructor instructor = new Instructor(
+                request.instructorId(),
+                request.instructorName(),
+                request.instructorEmail()
+        );
+
+        // 2. 构建排课信息（严格匹配ScheduleSlot的构造方法）
+        ScheduleSlot schedule = new ScheduleSlot(
+                request.dayOfWeek().toDayOfWeek(),
+                LocalTime.parse(request.start()),  // 对应ScheduleSlot的start参数
+                LocalTime.parse(request.end()),    // 对应ScheduleSlot的end参数
+                request.expectedAttendance()       // 对应ScheduleSlot的expectedAttendance参数
+        );
+
+        // 3. 构建课程实体
         Course course = new Course(
                 request.code(),
                 request.title(),
-                new Instructor(request.instructorId(), request.instructorName(), request.instructorEmail()),
-                new ScheduleSlot(
-                        request.dayOfWeek().toDayOfWeek(),
-                        LocalTime.parse(request.start()),
-                        LocalTime.parse(request.end()),
-                        request.expectedAttendance()
-                ),
+                instructor,
+                schedule,
                 request.capacity()
         );
+
+        // 4. 保存课程
         Course saved = repository.save(course);
 
+        // 5. 构建响应（此时CourseResponse的from方法已修复）
         Map<String, Object> response = new HashMap<>();
         response.put("port", currentPort);
         response.put("hostname", getHostname());
         response.put("data", CourseResponse.from(saved));
         response.put("status", "SUCCESS");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+    } catch (Exception e) {
+        log.error("创建课程失败", e);
+        // 返回具体错误信息，快速定位问题
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("port", currentPort);
+        errorResponse.put("hostname", getHostname());
+        errorResponse.put("status", "ERROR");
+        errorResponse.put("message", e.getMessage());
+        errorResponse.put("cause", e.getCause() != null ? e.getCause().getMessage() : "无");
+        return ResponseEntity.badRequest().body(errorResponse);
     }
+}
 
     // ==================== 测试接口（负载均衡验证）====================
 //    @GetMapping("/test")
