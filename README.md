@@ -247,7 +247,7 @@ course-cloud/
 - ✅ Docker Compose：一键部署所有服务
 - ✅ 测试脚本：完整的功能测试
 
-## Nacos服务注册与发现
+## 07Nacos服务注册与发现
 
 - **控制台访问**: http://localhost:8848/nacos（默认账号 / 密码：nacos/nacos）
 
@@ -502,6 +502,314 @@ docker start course-cloud-hw07-user-service-1
 | catalog-service    | catalog_db               | 3307       | 3306       | catalog_user    | catalog_pass    |
 | enrollment-service | enrollment_db            | 3308       | 3306       | enrollment_user | enrollment_pass |
 | Nacos              | 嵌入式数据库（单机模式） | -          | -          | nacos           | nacos           |
+
+## 08openFeign负载均衡与熔断降级测试
+
+## 一、OpenFeign 配置说明
+
+### 1. 核心依赖（pom.xml）
+
+```xml
+<!-- Spring Cloud OpenFeign 核心 -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-openfeign</artifactId>
+</dependency>
+<!-- Resilience4j 熔断器（Feign 熔断依赖） -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+</dependency>
+```
+
+### 2. 核心配置（application.yml）
+
+| 配置项                                                       | 说明                 | 取值                           |
+| ------------------------------------------------------------ | -------------------- | ------------------------------ |
+| `spring.cloud.openfeign.circuitbreaker.enabled`              | 开启 Feign 熔断开关  | `true`                         |
+| `feign.client.config.default.connectTimeout`                 | 全局连接超时         | `3000ms`                       |
+| `feign.client.config.default.readTimeout`                    | 全局读取超时         | `5000ms`                       |
+| `feign.client.config.user-service.loggerLevel`               | 微服务级日志级别     | `FULL`（打印完整请求 / 响应）  |
+| `resilience4j.circuitbreaker.instances.user-service.failure-rate-threshold` | 熔断失败率阈值       | `50%`（失败率超 50% 触发熔断） |
+| `resilience4j.circuitbreaker.instances.user-service.wait-duration-in-open-state` | 熔断打开状态持续时间 | `10s`（10 秒后进入半开状态）   |
+
+### 3. Feign 客户端配置
+
+#### （1）UserClient 配置
+
+```java
+@FeignClient(
+    name = "user-service", // 匹配 Nacos 注册的服务名
+    fallbackFactory = UserClientFallbackFactory.class // 降级工厂（带异常信息）
+)
+public interface UserClient {
+    // 按学号查询学生（适配微服务接口路径）
+    @GetMapping("/api/users/students/studentId/{studentId}")
+    Map<String, Object> getStudentByStudentId(@PathVariable("studentId") String studentId);
+}
+```
+
+#### （2）CatalogClient 配置
+
+```java
+@FeignClient(
+    name = "catalog-service", // 匹配 Nacos 注册的服务名
+    fallbackFactory = CatalogClientFallbackFactory.class // 降级工厂
+)
+public interface CatalogClient {
+    // 查询课程信息（适配微服务接口路径）
+    @GetMapping("/api/courses/{id}")
+    Map<String, Object> getCourse(@PathVariable("id") String id);
+}
+```
+
+### 4. 降级工厂核心逻辑
+
+- 实现 `FallbackFactory` 接口，捕获服务调用异常并返回标准化降级响应；
+- 降级响应包含 `status: ERROR` 标识，便于业务层识别降级触发；
+- 补充默认 `data` 字段（如课程容量），避免业务代码空指针。
+
+## 二、负载均衡测试结果
+
+### 1. 测试环境
+
+- User Service 实例数：3 个（端口 8081，Nacos 注册健康实例数 3）；
+- Catalog Service 实例数：3 个（端口 8082，Nacos 注册健康实例数 3）；
+- 测试工具：curl 批量发送选课请求。
+
+### 2. 测试步骤
+
+```bash
+# 循环发送10次选课请求（学生ID 20249811~20249820）
+for i in {11..20}; do
+  curl -X POST http://localhost:8083/api/enrollments \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"courseId\": \"3d37d0bdd2a811f094f4aa5b30e31250\",
+    \"studentId\": \"202498$i\"
+  }"
+done
+```
+
+### 3. 测试结果
+
+| 微服务          | 实例路由分布                                                 | 负载均衡策略                       | 结果说明                              |
+| --------------- | ------------------------------------------------------------ | ---------------------------------- | ------------------------------------- |
+| User Service    | e8267d9025ce:8081（4 次）、62b2181845b3:8081（3 次）、5f056cae2dc5:8081（3 次） | Spring Cloud LoadBalancer 轮询策略 | 请求均匀分发到 3 个实例，负载均衡生效 |
+| Catalog Service | 9d78f2e14c89:8082（3 次）、8e67d1c03b78:8082（4 次）、7c56b0a92d67:8082（3 次） | Spring Cloud LoadBalancer 轮询策略 | 请求均匀分发到 3 个实例，负载均衡生效 |
+
+### 4. 关键日志示例
+
+```plaintext
+2025-12-08T15:24:17.673Z INFO 1 --- [enrollment-service] [nio-8083-exec-6] c.z.c.e.service.EnrollmentService       : 选课请求 | studentId: 20249811 | 路由到User Service实例: e8267d9025ce:8081
+2025-12-08T15:24:27.987Z INFO 1 --- [enrollment-service] [nio-8083-exec-7] c.z.c.e.service.EnrollmentService       : 选课请求 | studentId: 20249812 | 路由到User Service实例: 62b2181845b3:8081
+```
+
+## 三、熔断降级测试结果
+
+### 1. 测试场景 1：停止所有 User Service 实例
+
+#### 测试步骤
+
+```bash
+# 停止所有 User Service 实例
+docker stop user-service-1 user-service-2 user-service-3
+# 发送选课请求
+curl -X POST http://localhost:8083/api/enrollments \
+-H "Content-Type: application/json" \
+-d '{
+  "courseId": "3d37d0bdd2a811f094f4aa5b30e31250",
+  "studentId": "20249811"
+}'
+```
+
+#### 测试结果
+
+- 响应状态码：503 Service Unavailable；
+
+- 响应内容：
+
+  ```json
+  {
+    "path":"/api/enrollments",
+    "error":"Service Unavailable",
+    "message":"用户服务暂时不可用: 用户服务暂时不可用: Load balancer does not contain an instance for the service user-service",
+    "timestamp":"2025-12-08T14:18:16.444802260",
+    "status":503
+  }
+  ```
+
+- 日志验证：
+
+  ```plaintext
+  2025-12-08T14:18:16.441Z ERROR 1 --- [enrollment-service] [nio-8083-exec-6] c.z.c.e.client.UserClientFallbackFactory : 🔥 UserClientFallbackFactory 被调用！
+  2025-12-08T14:18:16.442Z ERROR 1 --- [enrollment-service] [nio-8083-exec-6] c.z.c.e.client.UserClientFallbackFactory : ✅✅✅ UserClient Fallback 触发！studentId: 20249811
+  2025-12-08T14:18:16.443Z ERROR 1 --- [enrollment-service] [nio-8083-exec-6] c.z.c.e.service.EnrollmentService       : ✅ 用户服务降级触发: 用户服务暂时不可用: Load balancer does not contain an instance for the service user-service
+  ```
+
+- 结论：熔断降级触发，返回标准化 503 响应，降级逻辑生效。
+
+### 2. 测试场景 2：重启 User Service 实例（学生 ID 不存在）
+
+#### 测试步骤
+
+```bash
+# 重启所有 User Service 实例
+docker start user-service-1 user-service-2 user-service-3
+# 发送选课请求（学生ID不存在）
+curl -X POST http://localhost:8083/api/enrollments \
+-H "Content-Type: application/json" \
+-d '{
+  "courseId": "3d37d0bdd2a811f094f4aa5b30e31250",
+  "studentId": "20249812"
+}'
+```
+
+#### 测试结果
+
+- 响应状态码：503 Service Unavailable；
+
+- 响应内容：
+
+  ```json
+  {"id":"1e299b67-efb0-42eb-b48c-1a296de66064",
+   "courseId":"3d37d0bdd2a811f094f4aa5b30e31250",
+   "studentId":"20249812",
+   "enrolledAt":"2025-12-08T16:05:52.319718016"}
+  ```
+
+  
+
+- 结论：User Service 正常运行
+
+## 四、OpenFeign vs RestTemplate 对比分析
+
+| 维度        | OpenFeign                                                    | RestTemplate                                                 |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 开发效率    | 声明式 API，通过注解定义接口，无需手动拼接 URL / 参数，代码简洁 | 编程式调用，需手动拼接 URL、设置请求头 / 参数，代码冗余      |
+| 可读性      | 接口与微服务 API 一一对应，语义清晰，易维护                  | URL 硬编码在代码中，参数拼接复杂，可读性差                   |
+| 负载均衡    | 自动集成 Spring Cloud LoadBalancer，无需额外配置             | 需手动结合 `@LoadBalanced` 注解，通过服务名调用              |
+| 熔断降级    | 支持 `fallbackFactory` 优雅降级，可捕获异常信息              | 需手动结合 Resilience4j 注解，代码侵入性高                   |
+| 日志 / 监控 | 内置日志级别配置（NONE/BASIC/HEADERS/FULL），便于调试        | 需手动打印日志，监控成本高                                   |
+| 扩展性      | 支持拦截器、编码器 / 解码器自定义，扩展性强                  | 自定义需封装工具类，扩展性弱                                 |
+| 学习成本    | 低（基于注解，符合 RESTful 风格）                            | 中（需熟悉 HTTP 调用细节）                                   |
+| 适用场景    | 微服务间常规调用，追求开发效率和可维护性                     | 特殊场景（如复杂 HTTP 请求构造），或低版本 Spring Cloud 项目 |
+
+### 核心结论
+
+OpenFeign 更适合微服务架构下的服务调用场景，大幅降低开发成本，提升代码可维护性；RestTemplate 适合需要精细化控制 HTTP 请求的特殊场景，或对框架侵入性要求低的场景。
+
+## 五、构建与运行步骤
+
+### 1. 环境准备
+
+- 虚拟机环境：Ubuntu 20.04 + Docker + Docker Compose；
+- 依赖服务：Nacos（服务注册）、MySQL（各微服务数据库）。
+
+### 2. 代码构建
+
+```bash
+# 进入项目目录
+cd ~/桌面/course-cloud-hw08
+
+mvn clean package -DskipTests
+# 构建 Docker 镜像
+docker-compose build --no-cache enrollment-service
+```
+
+### 3. 服务启动
+
+```bash
+# 启动所有依赖服务（Nacos/MySQL/用户/课程服务）
+docker compose up -d 
+
+# 查看服务状态
+docker-compose ps
+```
+
+### 4. 验证服务
+
+```bash
+# 检查 Nacos 服务注册
+curl http://localhost:8848/nacos/v1/ns/catalog/instances?serviceName=user-service&groupName=COURSEHUB_GROUP&namespaceId=dev
+# 发送选课请求
+curl -X POST http://localhost:8083/api/enrollments \
+-H "Content-Type: application/json" \
+-d '{
+  "courseId": "3d37d0bdd2a811f094f4aa5b30e31250",
+  "studentId": "20249811"
+}'
+```
+
+## 六、熔断机制实现方式
+
+### 1. 核心依赖
+
+通过 `spring-cloud-starter-circuitbreaker-resilience4j` 集成 Resilience4j 熔断器，替代传统 Hystrix。
+
+### 2. 核心配置
+
+```yaml
+# 开启 Feign 熔断
+spring:
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+# Resilience4j 熔断器规则
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        failure-rate-threshold: 50 # 失败率超50%触发熔断
+        wait-duration-in-open-state: 10s # 熔断打开10秒后尝试恢复
+        minimum-number-of-calls: 5 # 最少5次调用才计算失败率
+        record-exceptions: # 触发熔断的异常类型
+          - feign.FeignException
+          - java.lang.Exception
+```
+
+### 3. 代码实现
+
+#### （1）降级工厂（FallbackFactory）
+
+- 实现 `FallbackFactory` 接口，捕获服务调用异常；
+- 构建标准化降级响应（包含 `status: ERROR` 标识）；
+- 记录降级日志，便于问题排查。
+
+#### （2）业务层识别降级
+
+```java
+// 调用 Feign 客户端
+Map<String, Object> studentResponse = userClient.getStudentByStudentId(studentId);
+// 识别降级响应
+if ("ERROR".equals(studentResponse.get("status"))) {
+    String errorMsg = (String) studentResponse.get("message");
+    throw new ServiceUnavailableException("用户服务暂时不可用: " + errorMsg);
+}
+```
+
+#### （3）全局异常处理
+
+```java
+@ExceptionHandler(ServiceUnavailableException.class)
+public ResponseEntity<Map<String, Object>> handleServiceUnavailableException(ServiceUnavailableException e) {
+    Map<String, Object> response = buildErrorResponse(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        e.getMessage(),
+        request.getDescription(false)
+    );
+    return new ResponseEntity<>(response, HttpStatus.SERVICE_UNAVAILABLE);
+}
+```
+
+### 4. 熔断状态流转
+
+- **关闭状态（CLOSED）**：服务正常，请求正常转发，统计失败率；
+- **打开状态（OPEN）**：失败率超阈值，触发熔断，直接调用降级方法；
+- **半开状态（HALF_OPEN）**：熔断打开 10 秒后，允许少量请求尝试调用服务，若成功则恢复关闭状态，否则继续打开。
+
+
 
 ## 许可证
 
