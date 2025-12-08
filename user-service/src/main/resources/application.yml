@@ -1,114 +1,16 @@
-#server:
-#  port: 8081
-#
-#spring:
-#  application:
-#    name: user-service  # 微服务名称（Nacos 注册的服务名）
-#
-#  datasource:
-#    url: jdbc:mysql://localhost:3306/user_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8
-#    username: root
-#    password: 123456
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-#
-#  jpa:
-#    hibernate:
-#      ddl-auto: update  # 自动更新表结构
-#    show-sql: true  # 打印 SQL 日志
-#    properties:
-#      hibernate:
-#        format_sql: true  # 格式化 SQL
-#        dialect: org.hibernate.dialect.MySQL8Dialect  # 手动指定 MySQL 8 方言
-#    open-in-view: false
-#
-#  cloud:
-#    nacos:
-#      discovery:
-#        enabled: true
-#        server-addr: localhost:8848  # 本地开发环境
-#        namespace: dev  # 命名空间（需在 Nacos 控制台创建）
-#        register-enabled: true
-#        group: COURSEHUB_GROUP  # 分组
-#        ephemeral: true  # 临时实例（服务宕机后 Nacos 自动注销）
-#        heart-beat-interval: 5000  # 心跳间隔 5s
-#        heart-beat-timeout: 15000  # 心跳超时 15s
-#
-#logging:
-#  level:
-#    root: INFO
-#    org.hibernate: DEBUG  # 打印 Hibernate 详细日志
-#    org.springframework.jdbc: DEBUG  # 打印 JDBC 连接日志
-#    com.alibaba.cloud.nacos: DEBUG
-#    com.alibaba.nacos: DEBUG
-#
-#management:
-#  endpoints:
-#    web:
-#      exposure:
-#        include: health  # 暴露 /actuator/health 端点
-#  endpoint:
-#    health:
-#      show-details: always  # 显示健康详情，便于 Nacos 识别服务状态
-#
-#
-## Feign Configuration
-#feign:
-#  client:
-#    config:
-#      default:
-#        connectTimeout: 3000        # 连接超时3秒
-#        readTimeout: 5000           # 读取超时5秒
-#      user-service:
-#        connectTimeout: 2000        # user-service特定配置
-#        readTimeout: 3000
-#  circuitbreaker:
-#    enabled: true                   # 启用熔断器
-#
-## Resilience4j Circuit Breaker Configuration
-#resilience4j:
-#  circuitbreaker:
-#    instances:
-#      user-service:
-#        # 熔断器配置
-#        failure-rate-threshold: 50                    # 失败率阈值50%
-#        slow-call-rate-threshold: 50                  # 慢调用率阈值50%
-#        slow-call-duration-threshold: 2s              # 慢调用时间阈值2秒
-#        sliding-window-type: COUNT_BASED              # 滑动窗口类型:基于计数
-#        sliding-window-size: 10                       # 滑动窗口大小10次调用
-#        minimum-number-of-calls: 5                    # 最少调用次数5次
-#        # 状态转换配置
-#        wait-duration-in-open-state: 10s              # 熔断后等待时间10秒
-#        permitted-number-of-calls-in-half-open-state: 3  # 半开状态允许调用3次
-#        automatic-transition-from-open-to-half-open-enabled: true  # 自动转换
-#        register-health-indicator: true
-#  retry:
-#    instances:
-#      user-service:
-#        max-attempts: 3                    # 最大重试次数3次
-#        wait-duration: 500ms               # 重试间隔500ms
-#        enable-exponential-backoff: true   # 启用指数退避
-#        exponential-backoff-multiplier: 2  # 退避乘数2
-#        retry-exceptions:                  # 重试异常
-#          - java.net.ConnectException
-#          - java.net.SocketTimeoutException
-
-
-
 server:
-  port: 8081  # 保持原有端口
+  port: 8081
 
 spring:
   application:
-    name: user-service  # 仅标识服务名称，无实际注册作用
+    name: user-service  # 微服务名称（Nacos 注册的服务名）
 
-  # 本地MySQL配置（确保本地MySQL已启动、user_db已创建）
   datasource:
     url: jdbc:mysql://localhost:3306/user_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
-  # JPA配置（保持原有）
   jpa:
     hibernate:
       ddl-auto: update  # 自动更新表结构
@@ -119,15 +21,73 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect  # 手动指定 MySQL 8 方言
     open-in-view: false
 
+  cloud:
+    nacos:
+      discovery:
+        enabled: true
+        server-addr: localhost:8848  # 本地开发环境
+        namespace: dev  # 命名空间（需在 Nacos 控制台创建）
+        register-enabled: true
+        group: COURSEHUB_GROUP  # 分组
+        ephemeral: true  # 临时实例（服务宕机后 Nacos 自动注销）
+        heart-beat-interval: 5000  # 心跳间隔 5s
+        heart-beat-timeout: 15000  # 心跳超时 15s
 
-
-# 日志配置（简化，关闭Nacos相关日志）
 logging:
   level:
     root: INFO
     org.hibernate: DEBUG  # 打印 Hibernate 详细日志
     org.springframework.jdbc: DEBUG  # 打印 JDBC 连接日志
-    # 关闭所有Cloud/Nacos日志（减少干扰）
-    com.alibaba.cloud.nacos: OFF
-    com.alibaba.nacos: OFF
-    org.springframework.cloud: OFF
+    com.alibaba.cloud.nacos: DEBUG
+    com.alibaba.nacos: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health  # 暴露 /actuator/health 端点
+  endpoint:
+    health:
+      show-details: always  # 显示健康详情，便于 Nacos 识别服务状态
+
+
+
+
+
+#server:
+#  port: 8081  # 保持原有端口
+#
+#spring:
+#  application:
+#    name: user-service  # 仅标识服务名称，无实际注册作用
+#
+#  # 本地MySQL配置（确保本地MySQL已启动、user_db已创建）
+#  datasource:
+#    url: jdbc:mysql://localhost:3306/user_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8
+#    username: root
+#    password: 123456
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#
+#  # JPA配置（保持原有）
+#  jpa:
+#    hibernate:
+#      ddl-auto: update  # 自动更新表结构
+#    show-sql: true  # 打印 SQL 日志
+#    properties:
+#      hibernate:
+#        format_sql: true  # 格式化 SQL
+#        dialect: org.hibernate.dialect.MySQL8Dialect  # 手动指定 MySQL 8 方言
+#    open-in-view: false
+#
+#
+#
+## 日志配置（简化，关闭Nacos相关日志）
+#logging:
+#  level:
+#    root: INFO
+#    org.hibernate: DEBUG  # 打印 Hibernate 详细日志
+#    org.springframework.jdbc: DEBUG  # 打印 JDBC 连接日志
+#    # 关闭所有Cloud/Nacos日志（减少干扰）
+#    com.alibaba.cloud.nacos: OFF
+#    com.alibaba.nacos: OFF
+#    org.springframework.cloud: OFF

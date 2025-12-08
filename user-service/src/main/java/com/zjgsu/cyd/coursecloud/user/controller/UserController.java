@@ -120,6 +120,7 @@ public class UserController {
                 });
     }
 
+    // 根据学号查询
     @GetMapping("/students/studentId/{studentId}")
     public ResponseEntity<Map<String, Object>> getStudentByStudentId(@PathVariable String studentId) {
         log.info("User Service [port: {}, hostname: {}] getting student by studentId: {}",
