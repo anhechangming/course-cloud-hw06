@@ -1,147 +1,147 @@
-server:
-  port: 8083
-
-spring:
-  application:
-    name: enrollment-service
-
-  datasource:
-    # ⭐ Docker环境使用服务名，匹配docker-compose配置
-    url: jdbc:mysql://enrollment-db:3306/enrollment_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8&createDatabaseIfNotExist=true
-    username: enrollment_user  # ⭐ 匹配docker-compose的MYSQL_USER
-    password: enrollment_pass  # ⭐ 匹配docker-compose的MYSQL_PASSWORD
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-        dialect: org.hibernate.dialect.MySQL8Dialect
-    open-in-view: false
-
-  cloud:
-    nacos:
-      discovery:
-        enabled: true
-        server-addr: nacos:8848  # ⭐ Docker环境使用服务名
-        namespace: dev
-        register-enabled: true
-        group: COURSEHUB_GROUP
-        ephemeral: true
-        heart-beat-interval: 5000
-        heart-beat-timeout: 15000
-    openfeign:
-      circuitbreaker:
-        enabled: true
-        alphanumeric-ids:
-          enabled: true
-
-# ============== Logging ==============
-logging:
-  level:
-    root: INFO
-    io.github.resilience4j: DEBUG
-    org.springframework.cloud.circuitbreaker: DEBUG
-    org.springframework.cloud: DEBUG
-    org.hibernate: INFO  # ⭐ 改为INFO减少日志
-    org.hibernate.SQL: DEBUG
-    org.springframework.jdbc: DEBUG
-    com.zjgsu.cyd: DEBUG
-    com.alibaba.nacos: INFO  # ⭐ 减少Nacos日志
-    com.zjgsu.cyd.coursecloud.enrollment.client: DEBUG
-    org.springframework.cloud.openfeign: DEBUG
-
-# ============== Management ==============
-management:
-  endpoints:
-    web:
-      exposure:
-        include: "*"
-      base-path: /actuator
-  endpoint:
-    health:
-      show-details: always
-      show-components: always
-  health:
-    circuitbreakers:
-      enabled: true
-
-# ============== Feign ==============
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 3000
-        readTimeout: 5000
-        loggerLevel: FULL  # ⭐ 改为BASIC减少日志
-      user-service:
-        connectTimeout: 2000
-        readTimeout: 3000
-        loggerLevel: FULL
-      catalog-service:
-        connectTimeout: 2000
-        readTimeout: 3000
-        loggerLevel: FULL
-
-
-# ============== Resilience4j ==============
-resilience4j:
-  circuitbreaker:
-    configs:
-      default:
-        register-health-indicator: true
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
-        wait-duration-in-open-state: 10s
-        failure-rate-threshold: 50
-        slow-call-rate-threshold: 50
-        slow-call-duration-threshold: 2s
-        sliding-window-type: COUNT_BASED
-        record-exceptions:
-          - org.springframework.web.client.HttpServerErrorException
-          - java.io.IOException
-          - java.util.concurrent.TimeoutException
-          - feign.RetryableException
-          - feign.FeignException
-    instances:
-      user-service:
-        base-config: default
-        recordExceptions:
-          - java.lang.Exception
-          - feign.FeignException
-      catalog-service:
-        base-config: default
-        recordExceptions:
-          - java.lang.Exception
-          - feign.FeignException
-  retry:
-    configs:
-      default:
-        max-attempts: 3
-        wait-duration: 500ms
-        enable-exponential-backoff: true
-        exponential-backoff-multiplier: 2
-        retry-exceptions:
-          - java.net.ConnectException
-          - java.net.SocketTimeoutException
-          - feign.RetryableException
-    instances:
-      user-service:
-        base-config: default
-      catalog-service:
-        base-config: default
-
-
-
+#server:
+#  port: 8083
+#
+#spring:
+#  application:
+#    name: enrollment-service
+#
+#  datasource:
+#    # ⭐ Docker环境使用服务名，匹配docker-compose配置
+#    url: jdbc:mysql://enrollment-db:3306/enrollment_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8&createDatabaseIfNotExist=true
+#    username: enrollment_user  # ⭐ 匹配docker-compose的MYSQL_USER
+#    password: enrollment_pass  # ⭐ 匹配docker-compose的MYSQL_PASSWORD
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#    hikari:
+#      maximum-pool-size: 10
+#      minimum-idle: 5
+#      connection-timeout: 30000
+#
+#  jpa:
+#    hibernate:
+#      ddl-auto: update
+#    show-sql: true
+#    properties:
+#      hibernate:
+#        format_sql: true
+#        dialect: org.hibernate.dialect.MySQL8Dialect
+#    open-in-view: false
+#
+#  cloud:
+#    nacos:
+#      discovery:
+#        enabled: true
+#        server-addr: nacos:8848  # ⭐ Docker环境使用服务名
+#        namespace: dev
+#        register-enabled: true
+#        group: COURSEHUB_GROUP
+#        ephemeral: true
+#        heart-beat-interval: 5000
+#        heart-beat-timeout: 15000
+#    openfeign:
+#      circuitbreaker:
+#        enabled: true
+#        alphanumeric-ids:
+#          enabled: true
+#
+## ============== Logging ==============
+#logging:
+#  level:
+#    root: INFO
+#    io.github.resilience4j: DEBUG
+#    org.springframework.cloud.circuitbreaker: DEBUG
+#    org.springframework.cloud: DEBUG
+#    org.hibernate: INFO  # ⭐ 改为INFO减少日志
+#    org.hibernate.SQL: DEBUG
+#    org.springframework.jdbc: DEBUG
+#    com.zjgsu.cyd: DEBUG
+#    com.alibaba.nacos: INFO  # ⭐ 减少Nacos日志
+#    com.zjgsu.cyd.coursecloud.enrollment.client: DEBUG
+#    org.springframework.cloud.openfeign: DEBUG
+#
+## ============== Management ==============
+#management:
+#  endpoints:
+#    web:
+#      exposure:
+#        include: "*"
+#      base-path: /actuator
+#  endpoint:
+#    health:
+#      show-details: always
+#      show-components: always
+#  health:
+#    circuitbreakers:
+#      enabled: true
+#
+## ============== Feign ==============
+#feign:
+#  client:
+#    config:
+#      default:
+#        connectTimeout: 3000
+#        readTimeout: 5000
+#        loggerLevel: FULL  # ⭐ 改为BASIC减少日志
+#      user-service:
+#        connectTimeout: 2000
+#        readTimeout: 3000
+#        loggerLevel: FULL
+#      catalog-service:
+#        connectTimeout: 2000
+#        readTimeout: 3000
+#        loggerLevel: FULL
+#
+#
+## ============== Resilience4j ==============
+#resilience4j:
+#  circuitbreaker:
+#    configs:
+#      default:
+#        register-health-indicator: true
+#        sliding-window-size: 10
+#        minimum-number-of-calls: 5
+#        permitted-number-of-calls-in-half-open-state: 3
+#        automatic-transition-from-open-to-half-open-enabled: true
+#        wait-duration-in-open-state: 10s
+#        failure-rate-threshold: 50
+#        slow-call-rate-threshold: 50
+#        slow-call-duration-threshold: 2s
+#        sliding-window-type: COUNT_BASED
+#        record-exceptions:
+#          - org.springframework.web.client.HttpServerErrorException
+#          - java.io.IOException
+#          - java.util.concurrent.TimeoutException
+#          - feign.RetryableException
+#          - feign.FeignException
+#    instances:
+#      user-service:
+#        base-config: default
+#        recordExceptions:
+#          - java.lang.Exception
+#          - feign.FeignException
+#      catalog-service:
+#        base-config: default
+#        recordExceptions:
+#          - java.lang.Exception
+#          - feign.FeignException
+#  retry:
+#    configs:
+#      default:
+#        max-attempts: 3
+#        wait-duration: 500ms
+#        enable-exponential-backoff: true
+#        exponential-backoff-multiplier: 2
+#        retry-exceptions:
+#          - java.net.ConnectException
+#          - java.net.SocketTimeoutException
+#          - feign.RetryableException
+#    instances:
+#      user-service:
+#        base-config: default
+#      catalog-service:
+#        base-config: default
+#
+#
+#
 
 
 
@@ -265,46 +265,46 @@ resilience4j:
 #          - java.net.SocketTimeoutException
 
 
-#server:
-#  port: 8083  # enrollment-service 本地端口
-#
-## 本地测试：指定user/catalog服务的地址
-#user:
-#  service:
-#    url: http://localhost:8081
-#catalog:
-#  service:
-#    url: http://localhost:8082
-#
-#spring:
-#  application:
-#    name: enrollment-service
-#
-#  # 本地MySQL配置（根据你的实际库名调整）
-#  datasource:
-#    url: jdbc:mysql://localhost:3306/enrollment_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8
-#    username: root
-#    password: 123456
-#    driver-class-name: com.mysql.cj.jdbc.Driver
-#
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#    show-sql: true
-#    properties:
-#      hibernate:
-#        format_sql: true
-#        dialect: org.hibernate.dialect.MySQL8Dialect
-#    open-in-view: false
-#
-#
-## 日志配置
-#logging:
-#  level:
-#    root: INFO
-#    org.hibernate: DEBUG
-#    org.springframework.jdbc: DEBUG
-#    org.springframework.web.client: DEBUG  # 打印RestTemplate调用日志
-#    com.alibaba.cloud: OFF
-#    org.springframework.cloud: OFF
+server:
+  port: 8083  # enrollment-service 本地端口
+
+# 本地测试：指定user/catalog服务的地址
+user:
+  service:
+    url: http://localhost:8081
+catalog:
+  service:
+    url: http://localhost:8082
+
+spring:
+  application:
+    name: enrollment-service
+
+  # 本地MySQL配置（根据你的实际库名调整）
+  datasource:
+    url: jdbc:mysql://localhost:3306/enrollment_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&characterEncoding=utf-8
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    open-in-view: false
+
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    org.hibernate: DEBUG
+    org.springframework.jdbc: DEBUG
+    org.springframework.web.client: DEBUG  # 打印RestTemplate调用日志
+    com.alibaba.cloud: OFF
+    org.springframework.cloud: OFF
 

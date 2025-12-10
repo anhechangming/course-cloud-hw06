@@ -61,23 +61,23 @@
             <artifactId>spring-cloud-starter-bootstrap</artifactId>
         </dependency>
 
-        <!-- Nacos 服务发现依赖 -->
-        <dependency>
-            <groupId>com.alibaba.cloud</groupId>
-            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
-        </dependency>
+<!--        &lt;!&ndash; Nacos 服务发现依赖 &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>com.alibaba.cloud</groupId>-->
+<!--            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>-->
+<!--        </dependency>-->
 
-        <!-- Spring Cloud LoadBalancer -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
-        </dependency>
+<!--        &lt;!&ndash; Spring Cloud LoadBalancer &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.cloud</groupId>-->
+<!--            <artifactId>spring-cloud-starter-loadbalancer</artifactId>-->
+<!--        </dependency>-->
 
-        <!-- Spring Boot Actuator -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
+<!--        &lt;!&ndash; Spring Boot Actuator &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.boot</groupId>-->
+<!--            <artifactId>spring-boot-starter-actuator</artifactId>-->
+<!--        </dependency>-->
 
         <!-- Spring Boot Web -->
         <dependency>
@@ -105,23 +105,23 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- OpenFeign -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-openfeign</artifactId>
-        </dependency>
-        <!-- Resilience4j 熔断器 -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
-        </dependency>
+<!--        &lt;!&ndash; OpenFeign &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.cloud</groupId>-->
+<!--            <artifactId>spring-cloud-starter-openfeign</artifactId>-->
+<!--        </dependency>-->
+<!--        &lt;!&ndash; Resilience4j 熔断器 &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework.cloud</groupId>-->
+<!--            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>-->
+<!--        </dependency>-->
 
-        <!-- Resilience4j Spring Boot 3 support (提供 resilience4j 的 actuator 子端点) -->
-        <dependency>
-            <groupId>io.github.resilience4j</groupId>
-            <artifactId>resilience4j-spring-boot3</artifactId>
-            <version>2.0.2</version> <!-- 或与你的 BOM 对应的版本 -->
-        </dependency>
+<!--        &lt;!&ndash; Resilience4j Spring Boot 3 support (提供 resilience4j 的 actuator 子端点) &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>io.github.resilience4j</groupId>-->
+<!--            <artifactId>resilience4j-spring-boot3</artifactId>-->
+<!--            <version>2.0.2</version> &lt;!&ndash; 或与你的 BOM 对应的版本 &ndash;&gt;-->
+<!--        </dependency>-->
 
 
         <!-- Lombok -->
