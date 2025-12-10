@@ -8,29 +8,29 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: localhost:8848
+        enabled: true
+        server-addr: nacos:8848
         namespace: dev
         group: COURSEHUB_GROUP
-
+        register-enabled: true
+        ephemeral: true  # ?????????? Nacos ?????
+        heart-beat-interval: 5000  # ???? 5s
+        heart-beat-timeout: 15000  # ???? 15s
     gateway:
+      discovery:
+        locator:
+          enabled: true          # ???????
+          lower-case-service-id: true
       # ????
       routes:
         # ??????
         - id: user-service
           uri: lb://user-service
           predicates:
-            - Path=/api/users/**
+            - Path=/api/users/**,/api/auth/**
           filters:
             - StripPrefix=1  # ?? /api ??
               # Auth ?? (????)
-
-        - id: auth-service
-          uri: lb://user-service
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-
           # Catalog Service ??
         - id: catalog-service
           uri: lb://catalog-service
@@ -38,16 +38,14 @@ spring:
             - Path=/api/courses/**
           filters:
              - StripPrefix=1
-
             # Enrollment Service ??
+               # Enrollment Service ??
         - id: enrollment-service
           uri: lb://enrollment-service
           predicates:
             - Path=/api/enrollments/**
           filters:
             - StripPrefix=1
-
-
       # ????
       globalcors:
         cors-configurations:
@@ -73,3 +71,16 @@ logging:
   level:
     com.zjgsu.cyd.coursecloud.gatewayservice: DEBUG
     org.springframework.cloud.gateway: DEBUG
+    root: INFO
+    com.alibaba.cloud.nacos: DEBUG
+    com.alibaba.nacos: DEBUG
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,gateway,info,mappings
+  endpoint:
+    health:
+      show-details: always  # ????????? Nacos ??????

@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/courses")
+@RequestMapping("/courses")
 public class CourseController {
 
     private static final Logger log = LoggerFactory.getLogger(CourseController.class);

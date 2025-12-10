@@ -811,6 +811,524 @@ public ResponseEntity<Map<String, Object>> handleServiceUnavailableException(Ser
 
 
 
+## 09 API 网关与统一认证
+
+### 模块概述
+
+**版本**: 09（重大架构升级）
+**核心功能**:
+- 基于 Spring Cloud Gateway 实现统一入口，集中管理路由与认证
+- JWT 认证机制：用户登录获取 Token，Gateway 验证 Token 并注入用户信息到请求头
+- 后端服务无需关心认证逻辑，仅读取 Gateway 传递的用户信息（`X-User-Id`、`X-Username`、`X-User-Role`）
+
+**架构变更**:
+```
+客户端
+  ↓
+Gateway (9000:8090) - JWT 认证、路由转发
+  ↓
+  ├─→ user-service (8081)    - 登录、注册、用户管理
+  ├─→ catalog-service (8082) - 课程管理
+  └─→ enrollment-service (8083) - 选课管理
+```
+
+---
+
+### Gateway 路由配置说明
+
+#### 1. 核心配置（application.yml）
+
+```yaml
+server:
+  port: 8090  # Gateway 内部端口，Docker 映射为 9000:8090
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: nacos:8848
+        namespace: dev
+        group: COURSEHUB_GROUP
+    gateway:
+      discovery:
+        locator:
+          enabled: true  # 启用自动路��发现
+          lower-case-service-id: true
+      routes:
+        # 用户服务路由
+        - id: user-service
+          uri: lb://user-service  # lb = Load Balancer
+          predicates:
+            - Path=/api/users/**,/api/auth/**
+          filters:
+            - StripPrefix=1  # 去掉 /api 前缀
+
+        # 课程服务路由
+        - id: catalog-service
+          uri: lb://catalog-service
+          predicates:
+            - Path=/api/courses/**
+          filters:
+            - StripPrefix=1
+
+        # 选课服务路由
+        - id: enrollment-service
+          uri: lb://enrollment-service
+          predicates:
+            - Path=/api/enrollments/**
+          filters:
+            - StripPrefix=1
+
+      # CORS 跨域配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: [GET, POST, PUT, DELETE, PATCH]
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+# JWT 配置（需与 user-service 保持一致）
+jwt:
+  secret: "MySecretKeyForJWT2024CourseCloudSystemVeryLongAndSecure1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # ≥512 bits（HS512 要求）
+  expiration: 86400000  # 24 小时
+```
+
+#### 2. 路由转发示例
+
+| 客户端请求                         | Gateway 转发路径         | 目标服务          |
+| ---------------------------------- | ------------------------ | ----------------- |
+| `POST /api/auth/login`             | `POST /auth/login`       | user-service:8081 |
+| `POST /api/auth/register/student`  | `POST /auth/register/student` | user-service:8081 |
+| `POST /api/courses`                | `POST /courses`          | catalog-service:8082 |
+| `POST /api/enrollments`            | `POST /enrollments`      | enrollment-service:8083 |
+
+**StripPrefix=1** 说明：Gateway 去掉路径中的第一个前缀（`/api`），转发给后端服务。例如 `/api/courses` → `/courses`。
+
+---
+
+### JWT 认证流程说明
+
+#### 1. 认证流程图
+
+```
+1. 用户注册/登录
+   客户端 → Gateway → user-service
+   ↓
+   user-service 生成 JWT Token（包含 userId、username、role）
+   ↓
+   返回 Token 给客户端
+
+2. 访问受保护接口
+   客户端携带 Token → Gateway JWT 过滤器
+   ↓
+   验证 Token 有效性（签名、过期时间）
+   ↓
+   解析 Token，提取用户信息
+   ↓
+   注入请求头：X-User-Id、X-Username、X-User-Role
+   ↓
+   转发到后端服务（user-service/catalog-service/enrollment-service）
+   ↓
+   后端服务读取请求头，无需验证 Token
+```
+
+#### 2. JWT 过滤器核心逻辑（Gateway）
+
+**文件**: `gateway-service/src/main/java/.../filter/JwtAuthenticationFilter.java`
+
+```java
+@Component
+public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+
+    // 白名单：不需要认证的路径
+    private static final List<String> WHITE_LIST = Arrays.asList(
+        "/api/auth/login",
+        "/api/auth/register/student",
+        "/api/auth/register/teacher"
+    );
+
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String path = exchange.getRequest().getPath().value();
+
+        // 1. 白名单路径直接放行
+        if (isWhiteListed(path)) {
+            return chain.filter(exchange);
+        }
+
+        // 2. 获取 Authorization 请求头
+        String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return unauthorized(exchange.getResponse());  // 返回 401
+        }
+
+        // 3. 验证 Token
+        String token = authHeader.substring(7);
+        if (!jwtUtil.validateToken(token)) {
+            return unauthorized(exchange.getResponse());
+        }
+
+        // 4. 解析 Token，提取用户信息
+        Claims claims = jwtUtil.parseToken(token);
+        String userId = claims.getSubject();
+        String username = claims.get("username", String.class);
+        String role = claims.get("role", String.class);
+
+        // 5. 注入请求头
+        ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+            .header("X-User-Id", userId)
+            .header("X-Username", username)
+            .header("X-User-Role", role)
+            .build();
+
+        return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    }
+
+    @Override
+    public int getOrder() {
+        return -100;  // 优先级最高
+    }
+}
+```
+
+#### 3. JWT 工具类（JwtUtil）
+
+**文件**: `gateway-service/src/main/java/.../util/JwtUtil.java`
+
+```java
+@Component
+public class JwtUtil {
+    @Value("${jwt.secret}")
+    private String secret;
+
+    @Value("${jwt.expiration}")
+    private Long expiration;
+
+    // 生成 Token（user-service 调用）
+    public String generateToken(String userId, String username, String role) {
+        return Jwts.builder()
+            .setSubject(userId)  // 用户 ID
+            .claim("username", username)
+            .claim("role", role)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + expiration))
+            .signWith(Keys.hmacShaKeyFor(secret.getBytes()), SignatureAlgorithm.HS512)
+            .compact();
+    }
+
+    // 验证 Token（Gateway 调用）
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder()
+                .setSigningKey(Keys.hmacShaKeyFor(secret.getBytes()))
+                .build()
+                .parseClaimsJws(token);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    // 解析 Token（Gateway 调用）
+    public Claims parseToken(String token) {
+        return Jwts.parserBuilder()
+            .setSigningKey(Keys.hmacShaKeyFor(secret.getBytes()))
+            .build()
+            .parseClaimsJws(token)
+            .getBody();
+    }
+}
+```
+
+#### 4. 用户登录接口（user-service）
+
+**文件**: `user-service/src/main/java/.../controller/AuthController.java`
+
+```java
+@RestController
+@RequestMapping("/auth")
+public class AuthController {
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
+        // 1. 查询用户
+        User user = userService.findByUsername(request.getUsername());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(401, "用户名或密码错误"));
+        }
+
+        // 2. 验证密码（BCrypt）
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(401, "用户名或密码错误"));
+        }
+
+        // 3. 生成 JWT Token
+        String token = jwtUtil.generateToken(
+            user.getId(),
+            user.getUsername(),
+            user.getUserType().name()  // STUDENT / TEACHER
+        );
+
+        // 4. 返回 Token 和用户信息
+        LoginResponse loginResponse = new LoginResponse(token, user);
+        return ResponseEntity.ok(ApiResponse.success(200, "登录成功", loginResponse));
+    }
+}
+```
+
+---
+
+### 测试结果展示
+
+#### 1. 学生注册
+
+```bash
+curl -X POST http://localhost:9000/api/auth/register/student \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "newtest",
+    "password": "pass123",
+    "email": "new@test.com",
+    "studentId": "9999",
+    "name": "测试学生",
+    "major": "计算机科学",
+    "grade": 2024
+  }'
+```
+
+**响应** (201 Created):
+```json
+{
+  "code": 201,
+  "message": "创建成功",
+  "data": {
+    "id": "84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb",
+    "username": "newtest",
+    "email": "new@test.com",
+    "studentId": "9999",
+    "name": "测试学生",
+    "major": "计算机科学",
+    "grade": 2024,
+    "createdAt": "2025-12-10T14:17:44.793833399"
+  }
+}
+```
+
+#### 2. 用户登录（获取 Token）
+
+```bash
+curl -X POST http://localhost:9000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "newtest",
+    "password": "pass123"
+  }'
+```
+
+**响应** (200 OK):
+```json
+{
+  "code": 200,
+  "message": "登录成功",
+  "data": {
+    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI4NGU1ZmNiNy03YTYwLTQ0NTMtOGNhNy00YjdlN2YxOGQ2ZmIiLCJ1c2VybmFtZSI6Im5ld3Rlc3QiLCJyb2xlIjoiU1RVREVOVCIsImlhdCI6MTc2NTM3NzQ4MCwiZXhwIjoxNzY1NDYzODgwfQ.Dqf_cbBWTEPzMs5sCtGo3WlYMVoWGsP294eQMdX1W--j8lVDSHgp_BDTTVdp6nc2UjO0j-rfQ-JGIYHf6cA_lg",
+    "userInfo": {
+      "id": "84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb",
+      "username": "newtest",
+      "email": "new@test.com",
+      "role": "STUDENT"
+    }
+  }
+}
+```
+
+**Token 内容**（Base64 解码后）:
+```json
+{
+  "sub": "84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb",  // userId
+  "username": "newtest",
+  "role": "STUDENT",
+  "iat": 1765377480,  // 签发时间
+  "exp": 1765463880   // 过期时间（24小时后）
+}
+```
+
+#### 3. Token 验证（访问受保护接口）
+
+```bash
+curl -X GET http://localhost:9000/api/auth/verify \
+  -H "Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI4NGU1ZmNiNy03YTYwLTQ0NTMtOGNhNy00YjdlN2YxOGQ2ZmIiLCJ1c2VybmFtZSI6Im5ld3Rlc3QiLCJyb2xlIjoiU1RVREVOVCIsImlhdCI6MTc2NTM3NzQ4MCwiZXhwIjoxNzY1NDYzODgwfQ.Dqf_cbBWTEPzMs5sCtGo3WlYMVoWGsP294eQMdX1W--j8lVDSHgp_BDTTVdp6nc2UjO0j-rfQ-JGIYHf6cA_lg"
+```
+
+**响应** (200 OK):
+```json
+{
+  "code": 200,
+  "message": "验证成功",
+  "data": "Token有效！用户ID: 84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb, 用户名: newtest, 角色: STUDENT"
+}
+```
+
+**后端日志验证**（user-service）:
+```
+2025-12-10T14:22:10.150Z INFO [user-service] Token验证请求：userId=84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb, username=newtest, role=STUDENT
+```
+
+#### 4. 未认证访问（401 测试）
+
+```bash
+curl -i -X POST http://localhost:9000/api/enrollments \
+  -H "Content-Type: application/json" \
+  -d '{"courseId":"test-id","studentId":"9999"}'
+```
+
+**响应** (401 Unauthorized):
+```
+HTTP/1.1 401 Unauthorized
+content-length: 0
+```
+
+**说明**: Gateway JWT 过滤器拦截未携带 Token 的请求，直接返回 401，不转发到后端服务。
+
+#### 5. 完整选课流程测试
+
+**步骤 1: 创建课程**
+```bash
+curl -X POST http://localhost:9000/api/courses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "code": "CSC101",
+    "title": "计算机科学导论",
+    "instructorId": "T001",
+    "instructorName": "张教授",
+    "instructorEmail": "zhang@example.com",
+    "dayOfWeek": "MONDAY",
+    "start": "09:00:00",
+    "end": "10:30:00",
+    "expectedAttendance": 50,
+    "capacity": 60
+  }'
+```
+
+**响应** (201 Created):
+```json
+{
+  "hostname": "1a9a8f0cf332",
+  "data": {
+    "id": "4e107813-de29-444a-84a5-bc550e76b328",
+    "code": "CSC101",
+    "title": "计算机科学导论",
+    "instructorName": "张教授",
+    "instructorEmail": "zhang@example.com",
+    "dayOfWeek": "MONDAY",
+    "start": "09:00",
+    "end": "10:30",
+    "capacity": 60,
+    "expectedAttendance": 50
+  },
+  "port": "8082",
+  "status": "SUCCESS"
+}
+```
+
+**步骤 2: 学生选课**
+```bash
+curl -i -X POST http://localhost:9000/api/enrollments \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "courseId": "4e107813-de29-444a-84a5-bc550e76b328",
+    "studentId": "9999"
+  }'
+```
+
+**响应** (201 Created):
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "id": "3f2a288c-15ce-4af0-bc81-2ea55feb7467",
+  "courseId": "4e107813-de29-444a-84a5-bc550e76b328",
+  "studentId": "9999",
+  "enrolledAt": "2025-12-10T16:26:26.882057090"
+}
+```
+
+**后端日志验证**（enrollment-service）:
+```
+2025-12-10T16:26:26.757Z INFO [enrollment-service] 学生选课请求成功（网关版）: userId=84e5fcb7-7a60-4453-8ca7-4b7e7f18d6fb, username=newtest, courseId=4e107813-de29-444a-84a5-bc550e76b328, studentId=9999
+```
+
+**✅ 验证成功**: 后端服务成功接收到 Gateway 注入的用户信息请求头（`X-User-Id`、`X-Username`、`X-User-Role`）。
+
+---
+
+### 部署与测试
+
+#### 1. 构建与启动
+
+```bash
+# 1. 构建所有服务
+cd user-service && mvn clean package -DskipTests && cd ..
+cd catalog-service && mvn clean package -DskipTests && cd ..
+cd enrollment-service && mvn clean package -DskipTests && cd ..
+cd gateway-service && mvn clean package -DskipTests && cd ..
+
+# 2. 启动所有服务（含 Gateway）
+docker compose up -d --build
+
+# 3. 验证服务状态
+docker compose ps
+```
+
+#### 2. 关键配置检查点
+
+| 检查项                     | 说明                                                         |
+| -------------------------- | ------------------------------------------------------------ |
+| Gateway 端口映射           | `9000:8090`（宿主机 9000 → 容器 8090）                       |
+| JWT secret 一致性          | Gateway 和 user-service 的 `jwt.secret` **必须完全一致**     |
+| Controller 路径配置        | 后端 Controller `@RequestMapping` 应为 `/auth`、`/courses`、`/enrollments`（不含 `/api`） |
+| Feign Client 路径配置      | 服务间调用路径应为 `/courses/{id}`（不含 `/api`）            |
+| Nacos 服务注册             | 所有服务（含 Gateway）注册到 dev 命名空间，COURSEHUB_GROUP 分组 |
+
+#### 3. 常见问题排查
+
+| 问题                          | 原因                                      | 解决方案                                                     |
+| ----------------------------- | ----------------------------------------- | ------------------------------------------------------------ |
+| 登录返回 500（WeakKeyException） | JWT secret 长度不足 512 bits（64 字节）   | 修改 `jwt.secret` 为至少 64 字节的字符串                     |
+| 登录成功但验证返回 401        | Gateway 和 user-service 的 secret 不一致  | 确保两个服务的 `jwt.secret` 完全相同                         |
+| 选课返回 404                  | Controller 路径配置错误（含 `/api` 前缀） | 修改 Controller `@RequestMapping` 为 `/enrollments`（去掉 `/api`） |
+| Feign 调用返回 404            | Feign Client 路径与 Controller 不匹配    | 修改 Feign `@GetMapping` 为 `/courses/{id}`（去掉 `/api`）  |
+| Gateway 无响应                | Gateway 容器未启动或端口冲突              | 检查 `docker compose ps`，确保 Gateway 容器 healthy          |
+
+---
+
+### 核心技术栈
+
+- **Spring Cloud Gateway**: 3.1.x（基于 Reactor 的异步网关）
+- **JWT**: jjwt 0.11.5（HS512 签名算法）
+- **Spring Security**: BCryptPasswordEncoder（密码加密）
+- **Nacos**: 2.2.3（服务注册与发现）
+
+---
+
 ## 许可证
 
 MIT License

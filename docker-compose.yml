@@ -118,7 +118,7 @@ services:
 
   # ========== 用户服务（3个实例） ==========
   # 实例1
-  user-service-1:
+  user-service:
     build:
       context: ./user-service
       dockerfile: Dockerfile
@@ -142,11 +142,15 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: true  # 明确启用服务发现
+      SPRING_CLOUD_NACOS_DISCOVERY_REGISTER_ENABLED: true  # 明确启用服务注册
       #  SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
       #  SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
       LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_ALIBABA_CLOUD_NACOS: DEBUG  # 开启Nacos调试日志
+      LOGGING_LEVEL_COM_ALIBABA_NACOS: DEBUG
     depends_on:
       user-db:
         condition: service_healthy
@@ -156,87 +160,11 @@ services:
       - course-network  # 加入统一网络
     restart: unless-stopped
 
-  # 实例2
-  user-service-2:
-    build:
-      context: ./user-service
-      dockerfile: Dockerfile
-    image: course-cloud-user-service:1.1.0  # 共用相同镜像
-    container_name: user-service-2  # 唯一容器名
-    environment:  # 环境变量与实例1完全一致
-      SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:mysql://user-db:3306/user_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: user_user
-      SPRING_DATASOURCE_PASSWORD: user_pass
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
-      SERVER_PORT: 8081
-      SPRING_APPLICATION_NAME: user-service
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE: dev
-      SPRING_CLOUD_NACOS_DISCOVERY_GROUP: COURSEHUB_GROUP
-      SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
-      #  SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
-      # SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-      LOGGING_LEVEL_ROOT: INFO
-    depends_on:
-      user-db:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    networks:
-      - course-network
-    restart: unless-stopped
 
-  # 实例3
-  user-service-3:
-    build:
-      context: ./user-service
-      dockerfile: Dockerfile
-    image: course-cloud-user-service:1.1.0  # 共用相同镜像
-    container_name: user-service-3  # 唯一容器名
-    environment:  # 环境变量与实例1完全一致
-      SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:mysql://user-db:3306/user_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: user_user
-      SPRING_DATASOURCE_PASSWORD: user_pass
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
-      SERVER_PORT: 8081
-      SPRING_APPLICATION_NAME: user-service
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE: dev
-      SPRING_CLOUD_NACOS_DISCOVERY_GROUP: COURSEHUB_GROUP
-      SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
-      #   SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
-      #   SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-      LOGGING_LEVEL_ROOT: INFO
-    depends_on:
-      user-db:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    networks:
-      - course-network
-    restart: unless-stopped
 
   # ========== 课程目录服务（3个实例） ==========
   # 实例1
-  catalog-service-1:
+  catalog-service:
     build:
       context: ./catalog-service
       dockerfile: Dockerfile
@@ -260,11 +188,15 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: true  # 明确启用服务发现
+      SPRING_CLOUD_NACOS_DISCOVERY_REGISTER_ENABLED: true  # 明确启用服务注册
       #   SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
       #   SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
       LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_ALIBABA_CLOUD_NACOS: DEBUG  # 开启Nacos调试日志
+      LOGGING_LEVEL_COM_ALIBABA_NACOS: DEBUG
     depends_on:
       catalog-db:
         condition: service_healthy
@@ -274,83 +206,6 @@ services:
       - course-network
     restart: unless-stopped
 
-  # 实例2
-  catalog-service-2:
-    build:
-      context: ./catalog-service
-      dockerfile: Dockerfile
-    image: course-cloud-catalog-service:1.1.0  # 共用相同镜像
-    container_name: catalog-service-2  # 唯一容器名
-    environment:  # 环境变量与实例1完全一致
-      SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:mysql://catalog-db:3306/catalog_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: catalog_user
-      SPRING_DATASOURCE_PASSWORD: catalog_pass
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
-      SERVER_PORT: 8082
-      SPRING_APPLICATION_NAME: catalog-service
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE: dev
-      SPRING_CLOUD_NACOS_DISCOVERY_GROUP: COURSEHUB_GROUP
-      SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
-      #   SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
-      #   SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-      LOGGING_LEVEL_ROOT: INFO
-    depends_on:
-      catalog-db:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    networks:
-      - course-network
-    restart: unless-stopped
-
-  # 实例3
-  catalog-service-3:
-    build:
-      context: ./catalog-service
-      dockerfile: Dockerfile
-    image: course-cloud-catalog-service:1.1.0  # 共用相同镜像
-    container_name: catalog-service-3  # 唯一容器名
-    environment:  # 环境变量与实例1完全一致
-      SPRING_PROFILES_ACTIVE: prod
-      SPRING_DATASOURCE_URL: jdbc:mysql://catalog-db:3306/catalog_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: catalog_user
-      SPRING_DATASOURCE_PASSWORD: catalog_pass
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_SHOW_SQL: true
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: true
-      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
-      SERVER_PORT: 8082
-      SPRING_APPLICATION_NAME: catalog-service
-      SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR: nacos:8848
-      SPRING_CLOUD_NACOS_DISCOVERY_NAMESPACE: dev
-      SPRING_CLOUD_NACOS_DISCOVERY_GROUP: COURSEHUB_GROUP
-      SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
-      SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
-      #    SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
-      #    SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
-      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
-      LOGGING_LEVEL_ROOT: INFO
-    depends_on:
-      catalog-db:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    networks:
-      - course-network
-    restart: unless-stopped
 
   # ========== 选课服务（1个实例，不变） ==========
   enrollment-service:
@@ -377,12 +232,16 @@ services:
       SPRING_CLOUD_NACOS_DISCOVERY_EPHEMERAL: true
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_INTERVAL: 5000
       SPRING_CLOUD_NACOS_DISCOVERY_HEART_BEAT_TIMEOUT: 15000
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: true  # 明确启用服务发现
+      SPRING_CLOUD_NACOS_DISCOVERY_REGISTER_ENABLED: true  # 明确启用服务注册
       #    SPRING_CLOUD_NACOS_DISCOVERY_USERNAME: nacos
       #    SPRING_CLOUD_NACOS_DISCOVERY_PASSWORD: nacos
       # Feign + Resilience4j 配置（作业要求，添加到环境变量）
       FEIGN_CLIENT_CONFIG_DEFAULT_CONNECT_TIMEOUT: 3000
       FEIGN_CLIENT_CONFIG_DEFAULT_READ_TIMEOUT: 5000
-
+      # ========== 新增：微服务调用配置（适配网关版Controller） ==========
+      SERVICE_USER_URL: http://user-service  # 服务名调用（替代IP:端口）
+      SERVICE_CATALOG_URL: http://catalog-service
       # 原有配置保留，新增以下熔断配置
       FEIGN_CIRCUITBREAKER_ENABLED: "true"  # 开启Feign熔断
       FEIGN_CLIENT_CONFIG_DEFAULT_CONNECTTIMEOUT: 2000
@@ -397,6 +256,8 @@ services:
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
       MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
       LOGGING_LEVEL_ROOT: INFO
+      LOGGING_LEVEL_COM_ALIBABA_CLOUD_NACOS: DEBUG  # 开启Nacos调试日志
+      LOGGING_LEVEL_COM_ALIBABA_NACOS: DEBUG
     ports:
       - "8083:8083"  # 暴露端口，供外部调用
     depends_on:
@@ -405,13 +266,50 @@ services:
       nacos:
         condition: service_healthy
       # 依赖user和catalog服务的实例启动（可选，确保调用时服务已就绪）
-      user-service-1:
+      user-service:
         condition: service_started
-      catalog-service-1:
+      catalog-service:
         condition: service_started
     networks:
       - course-network
     restart: unless-stopped
+
+
+  # API网关
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    image: course-cloud-gateway-service:1.0.0
+    container_name: gateway-service
+    environment:
+#      SPRING_PROFILES_ACTIVE: prod
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_NAMESPACE: dev
+      # 移除 SERVER_PORT，使用 application.yml 的 8090 配置
+      SPRING_APPLICATION_NAME: gateway-service
+      SPRING_CLOUD_NACOS_DISCOVERY_GROUP: COURSEHUB_GROUP
+      JWT_SECRET: "MySecretKeyForJWT2024CourseCloudSystemVeryLongAndSecure1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      JWT_EXPIRATION: 86400000
+        # 健康检查配置
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,gateway
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "9000:8090"
+    depends_on:
+      nacos:
+        condition: service_healthy
+    networks:
+      - course-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+
 
 
 
